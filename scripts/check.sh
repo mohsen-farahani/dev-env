@@ -15,8 +15,34 @@ elif [[ -e "$NVIM_TARGET" ]]; then
 else warn "$NVIM_TARGET does not exist (run scripts/bootstrap.sh)"; fi
 
 log ""
-log "== Neovim environment (using config at ${NVIM_APPNAME:-nvim}) =="
-nvim --headless "+lua require('devenv.health').run_cli()" 2>&1 | grep -v '^\[nvim-treesitter'
+# If the live config is not (yet) this repo's, check the repo config instead (live data dir, temp config dir).
+NVIM_ENV=(env DEVENV_NO_INSTALL=1) # read-only: never let lazy.nvim install plugins during a check
+if [[ -L "$NVIM_TARGET" && "$(readlink "$NVIM_TARGET")" == "$REPO_ROOT/nvim" ]]; then
+  log "== Neovim environment (live config) =="
+else
+  CFG_TMP="$(mktemp -d)"
+  ln -s "$REPO_ROOT/nvim" "$CFG_TMP/nvim"
+  NVIM_ENV=(env "XDG_CONFIG_HOME=$CFG_TMP" DEVENV_NO_INSTALL=1)
+  log "== Neovim environment (repo config; live config is not linked yet) =="
+fi
+
+# Headless nvim with stdin closed and a watchdog, so a broken config can never hang the check.
+run_nvim() {
+  "$@" </dev/null &
+  local pid=$!
+  (
+    sleep "${CHECK_TIMEOUT:-180}"
+    kill "$pid" 2>/dev/null
+  ) &
+  local wd=$!
+  wait "$pid"
+  local r=$?
+  kill "$wd" 2>/dev/null
+  wait "$wd" 2>/dev/null
+  return "$r"
+}
+
+run_nvim "${NVIM_ENV[@]}" nvim --headless "+lua require('devenv.health').run_cli()" 2>&1 | grep -v '^\[nvim-treesitter'
 rc=${PIPESTATUS[0]}
 
 if [[ "${1:-}" == "--deep" ]]; then
