@@ -118,6 +118,7 @@ fi
 log ""
 log "==== Test summary ===="
 printf '%s\n' "${RESULTS[@]}"
+rm -f samples/go-hello/__debug_bin* # dlv leaves build artifacts when a session is killed
 log "passed=$PASSED failed=$FAILED"
 log ""
 log "NOT covered by automated tests: Python/Node debug sessions, .NET attach-to-process, Go attach, DAP UI rendering,"

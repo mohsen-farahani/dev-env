@@ -1,7 +1,8 @@
+__debug_bin*
 .DS_Store
 *.log
 .env*
-/tmp/
 node_modules/
 bin/
 obj/
+*.bundle
