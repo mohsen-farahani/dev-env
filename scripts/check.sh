@@ -36,13 +36,16 @@ fi
 run_nvim() {
   "$@" </dev/null &
   local pid=$!
+  # The watchdog must not inherit our stdout: a leftover `sleep` holding the pipe open would make the
+  # downstream `| grep` wait for the whole timeout even though nvim already exited.
   (
     sleep "${CHECK_TIMEOUT:-180}"
     kill "$pid" 2>/dev/null
-  ) &
+  ) >/dev/null 2>&1 &
   local wd=$!
   wait "$pid"
   local r=$?
+  pkill -P "$wd" 2>/dev/null
   kill "$wd" 2>/dev/null
   wait "$wd" 2>/dev/null
   return "$r"
