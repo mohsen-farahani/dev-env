@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Health check. Usage: check.sh [--deep]   (--deep also runs LSP attach checks on the samples)
+# Exit code 1 if any FAIL. Read-only.
+set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+detect_platform || exit 1
+log "== System =="
+log "macOS $MACOS_VERSION / $ARCH / shell $(basename "${SHELL:-?}")"
+[[ -n "$BREW" ]] && pass "Homebrew at $BREW" || warn "Homebrew not found"
+[[ "$ARCH" == arm64 ]] || warn "Intel Mac: C# debugging (netcoredbg) has no prebuilt binary; see docs/DOTNET.md"
+if [[ -L "$NVIM_TARGET" && "$(readlink "$NVIM_TARGET")" == "$REPO_ROOT/nvim" ]]; then
+  pass "$NVIM_TARGET -> repo nvim/"
+elif [[ -e "$NVIM_TARGET" ]]; then
+  warn "$NVIM_TARGET is not linked to this repo (run scripts/backup.sh link)"
+else warn "$NVIM_TARGET does not exist (run scripts/bootstrap.sh)"; fi
+
+log ""
+log "== Neovim environment (using config at ${NVIM_APPNAME:-nvim}) =="
+nvim --headless "+lua require('devenv.health').run_cli()" 2>&1 | grep -v '^\[nvim-treesitter'
+rc=${PIPESTATUS[0]}
+
+if [[ "${1:-}" == "--deep" ]]; then
+  log ""
+  log "== Deep: LSP attach on samples =="
+  cd "$REPO_ROOT" || exit 1
+  deep() { FILE="$2" CLIENT="$3" SYMBOL="$4" BAD="$5" BAD_PATTERN="$6" DEF_FILE="$7" TIMEOUT=90000 nvim --headless -c "luafile tests/lsp_check.lua" >/dev/null 2>&1 && pass "$1" || {
+    fail "$1"
+    rc=1
+  }; }
+  deep "gopls on go sample" samples/go-hello/main.go gopls "Sum(" 'var x int = "s"' "cannot use" main.go
+  deep "roslyn on C# sample" samples/dotnet-sample/src/App/Program.cs roslyn "Factorial(" 'int y = "s";' "convert" Calculator.cs
+  deep "basedpyright on py" samples/py-hello/app.py basedpyright "add(" 'x: int = "s"' "not assignable" app.py
+fi
+exit "$rc"

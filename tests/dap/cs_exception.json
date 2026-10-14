@@ -1,0 +1,4 @@
+{"name":"csharp: user-unhandled exception stop","transport":"stdio","adapterID":"coreclr","timeout":60,
+ "cmd":["@HOME@/.local/share/dev-env/netcoredbg/netcoredbg","--interpreter=vscode"],
+ "launch":{"program":"@REPO@/samples/dotnet-sample/src/App/bin/Debug/net10.0/App.dll","args":["3","--throw"],"cwd":"@REPO@/samples/dotnet-sample/src/App","stopAtEntry":false,"env":{}},
+ "skip_step":true,"exception_filters":["user-unhandled"],"expect_reason":"exception","expect_frame":"Divide","expect_var":"$exception","expect_value":".*DivideByZeroException.*"}

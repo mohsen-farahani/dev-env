@@ -1,0 +1,4 @@
+{"name":"go: debug a test (mode=test)","transport":"tcp","adapterID":"go","cwd":"@REPO@/samples/go-hello","port":38698,
+ "cmd":["dlv","dap","-l","127.0.0.1:${port}"],
+ "launch":{"request":"launch","mode":"test","program":"@REPO@/samples/go-hello","cwd":"@REPO@/samples/go-hello","args":["-test.run","^TestSum$"]},
+ "bp_file":"@REPO@/samples/go-hello/main.go","bp_line":8,"expect_var":"total","expect_frame":"Sum"}

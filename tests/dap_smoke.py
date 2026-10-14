@@ -82,11 +82,17 @@ try:
 
     launch_seq = dap.send(cfg.get("request", "launch"), cfg["launch"])
     dap.event("initialized"); ok("initialized event")
-    bp = dap.response(dap.send("setBreakpoints", {"source": {"path": cfg["bp_file"]}, "breakpoints": [{"line": cfg["bp_line"]}]}))
-    if not bp["success"]: die("setBreakpoints", bp)
-    ok(f"setBreakpoints {os.path.basename(cfg['bp_file'])}:{cfg['bp_line']} verified={bp['body']['breakpoints'][0].get('verified')}")
+    if cfg.get("bp_file"):
+        bp = dap.response(dap.send("setBreakpoints", {"source": {"path": cfg["bp_file"]}, "breakpoints": [{"line": cfg["bp_line"]}]}))
+        if not bp["success"]: die("setBreakpoints", bp)
+        ok(f"setBreakpoints {os.path.basename(cfg['bp_file'])}:{cfg['bp_line']} verified={bp['body']['breakpoints'][0].get('verified')}")
+    if cfg.get("exception_filters"):
+        ex = dap.response(dap.send("setExceptionBreakpoints", {"filters": cfg["exception_filters"]}))
+        if not ex["success"]: die("setExceptionBreakpoints", ex)
+        ok(f"setExceptionBreakpoints {cfg['exception_filters']}")
     dap.response(dap.send("configurationDone"))
     stopped = dap.event("stopped"); ok(f"stopped (reason={stopped['body'].get('reason')})")
+    if cfg.get("expect_reason") and stopped["body"].get("reason") != cfg["expect_reason"]: die("stop reason", stopped["body"])
     tid = stopped["body"].get("threadId", 1)
 
     st = dap.response(dap.send("stackTrace", {"threadId": tid, "levels": 20}))["body"]["stackFrames"]
@@ -111,7 +117,8 @@ try:
         if not ev["success"] or not re.fullmatch(cfg["evaluate"]["match"], ev["body"]["result"]): die("evaluate", ev)
         ok(f"evaluate {cfg['evaluate']['expr']} = {ev['body']['result']}")
 
-    dap.response(dap.send("next", {"threadId": tid})); dap.event("stopped"); ok("step over -> stopped again")
+    if not cfg.get("skip_step"):  # an unhandled-exception stop cannot be stepped
+        dap.response(dap.send("next", {"threadId": tid})); dap.event("stopped"); ok("step over -> stopped again")
     dap.send("continue", {"threadId": tid})
     # session ends either via terminated or exited
     end = time.time() + TIMEOUT

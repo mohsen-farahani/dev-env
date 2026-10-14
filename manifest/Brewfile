@@ -11,3 +11,4 @@ brew "dotnet"    # skipped by install.sh if `dotnet` is already on PATH
 brew "shellcheck"
 brew "shfmt"
 brew "stylua"
+brew "tree-sitter-cli"

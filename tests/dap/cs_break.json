@@ -1,0 +1,5 @@
+{"name":"csharp: breakpoint in library project + locals + evaluate + step","transport":"stdio","adapterID":"coreclr","timeout":60,
+ "cmd":["@HOME@/.local/share/dev-env/netcoredbg/netcoredbg","--interpreter=vscode"],
+ "launch":{"program":"@REPO@/samples/dotnet-sample/src/App/bin/Debug/net10.0/App.dll","args":["5"],"cwd":"@REPO@/samples/dotnet-sample/src/App","stopAtEntry":false,"env":{}},
+ "bp_file":"@REPO@/samples/dotnet-sample/src/Calc/Calculator.cs","bp_line":10,"expect_var":"result","expect_frame":"Factorial",
+ "evaluate":{"expr":"n","match":"5"}}

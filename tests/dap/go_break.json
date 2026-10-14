@@ -1,0 +1,4 @@
+{"name":"go: breakpoint + locals + step + terminate","transport":"tcp","adapterID":"go","cwd":"@REPO@/samples/go-hello",
+ "cmd":["dlv","dap","-l","127.0.0.1:${port}"],
+ "launch":{"request":"launch","mode":"debug","program":"@REPO@/samples/go-hello","cwd":"@REPO@/samples/go-hello"},
+ "bp_file":"@REPO@/samples/go-hello/main.go","bp_line":8,"expect_var":"total","expect_frame":"Sum"}
