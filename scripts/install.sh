@@ -49,7 +49,7 @@ install_netcoredbg() {
   local tmp
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  curl -fsSL --proto '=https' -o "$tmp/pkg.zip" "$url" || {
+  curl -fsSL --proto '=https' --proto-redir '=https' -o "$tmp/pkg.zip" "$url" || {
     failed "netcoredbg download"
     return 0
   }
