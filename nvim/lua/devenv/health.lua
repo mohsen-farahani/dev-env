@@ -183,6 +183,7 @@ end
 
 --- Headless: prints results, exits non-zero on FAIL.
 function M.run_cli()
+  io.stdout:write("\n") -- keep output on its own line even if startup printed an error without a newline
   local n = { PASS = 0, WARN = 0, FAIL = 0 }
   for _, r in ipairs(M.collect()) do
     n[r.level] = n[r.level] + 1

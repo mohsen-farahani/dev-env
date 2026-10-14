@@ -24,7 +24,9 @@ git clone <this repo> ~/Code/Personal/dev-env && cd ~/Code/Personal/dev-env
 Bootstrap: installs only what is missing (never upgrades), installs a checksum-verified netcoredbg, the Roslyn
 language server and goimports, backs up and symlinks `~/.config/nvim` → `nvim/`, restores plugins from `lazy-lock.json`,
 installs Mason tools, and runs the health check. It ends with a report of installed / skipped / failed / manual items.
-It is idempotent. See `docs/INSTALL.md`.
+It is idempotent. The installer shows numbered steps with a spinner; full command output goes to a log under
+`~/.local/state/dev-env/logs/` and is printed only for failing steps. Set `NO_COLOR=1` for plain output.
+See `docs/INSTALL.md`.
 
 ## Daily use
 
