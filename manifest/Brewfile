@@ -1,0 +1,13 @@
+# Tools installed via Homebrew. Existing installs are never upgraded by install.sh.
+brew "neovim"
+brew "git"
+brew "ripgrep"
+brew "fd"
+brew "fzf"
+brew "go"        # skipped by install.sh if a `go` is already on PATH (e.g. /usr/local/go)
+brew "gopls"
+brew "delve"
+brew "dotnet"    # skipped by install.sh if `dotnet` is already on PATH
+brew "shellcheck"
+brew "shfmt"
+brew "stylua"
