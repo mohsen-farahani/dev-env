@@ -3,6 +3,8 @@
 A Git-managed Neovim 0.12 setup (Lua, lazy.nvim) with first-class **C#/.NET** and **Go** debugging, plus Python,
 TypeScript/JavaScript, Bash and Lua. Installation, health checks, updates, backup/rollback and smoke tests are scripts.
 
+![Neovim with file explorer, Go code, inline git blame and status line](docs/images/screenshot.png)
+
 ## Supported platforms
 
 | | Status |
