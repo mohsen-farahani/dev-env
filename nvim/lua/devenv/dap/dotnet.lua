@@ -57,7 +57,7 @@ local function build_and_resolve(proj, cb)
           lines = vim.split((b.stdout or "") .. (b.stderr or ""), "\n"),
           efm = "%f(%l\\,%c): %trror %m,%f(%l\\,%c): %tarning %m,%-G%.%#",
         })
-        vim.cmd("copen")
+        vim.cmd("botright copen | wincmd p")
         return notify("Build failed; debugging aborted", vim.log.levels.ERROR)
       end
       vim.system(

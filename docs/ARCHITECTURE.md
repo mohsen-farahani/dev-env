@@ -1,71 +1,74 @@
-# Architecture (draft v0, Phase A)
+# Architecture
 
-Status: plan written from inspection of the current machine and upstream
-sources checked on 2026-10-14. Items marked **UNVERIFIED** have not been
-exercised yet and must not be treated as working.
+Last verified: 2026-10-14 on macOS 27.0.1 / arm64, Neovim 0.12.6.
 
-## 1. Baseline machine (inspected)
-
-| Item | Found |
-|---|---|
-| OS / arch | macOS 27.0.1, arm64, zsh |
-| Homebrew | 7.0.9 at /opt/homebrew |
-| Neovim | 0.12.6 (Homebrew) |
-| Go / gopls / dlv | go 1.25.5 (/usr/local/go), gopls 0.23.0, dlv 1.27.2 (brew) |
-| .NET | SDK 10.0.401 + runtime 10.0.12 at /usr/local/share/dotnet (brew `dotnet` shim) |
-| Python / Node | 3.14.7 (brew), Node 20.20.2 via nvm |
-| Missing | netcoredbg, shellcheck, shfmt, stylua, gh |
-| Existing nvim config | `~/.config/nvim/init.lua` (single file) + `lazy-lock.json`; Mason has basedpyright, bash-language-server, lua-language-server, typescript-language-server |
-
-Findings about the existing config (it is NOT replaced until backed up and the new one passes checks):
-- The lazy spec is malformed: `claudecode.nvim`, tokyonight, lualine, nvim-tree, telescope and nvim-dap entries are nested inside the `mason-lspconfig` spec table, and `config = function` is placed after them. It only works by accident of table layout.
-- Go formatting uses `silent !gofmt -w %` + `edit!` on BufWritePre (fragile, discards undo, shells out). Replace with one formatter hook (conform.nvim).
-- `vim.lsp.config("roslyn", {})` is declared but roslyn is never installed or enabled.
-- Preserve: leader=Space, `<leader>ac` Claude Code, `<leader>e/ff/fg/fb`, `<leader>b`, `<leader>du`, F5/F10/F1/F2 debug keys, tokyonight-night, lualine.
+## 1. Goals
+Reproducible, safe-to-rerun Neovim IDE setup for macOS with first-class C#/.NET and Go debugging, minimal plugin
+count, no cloud code services, every claim backed by an automated test or explicitly marked untested.
 
 ## 2. Layout
-
 ```
-nvim/            -> symlinked to ~/.config/nvim (never copied, never overwrites without backup)
-  init.lua       -> loads lua/devenv/*
-  lua/devenv/{options,keymaps,lazy,lsp,format,dap,test}.lua
-  lua/devenv/lang/{go,dotnet,python,typescript,bash,lua}.lua
-  lazy-lock.json -> plugin pinning (committed)
-scripts/         bootstrap install check update backup test (+ lib/common.sh)
-manifest/        Brewfile, tools.lock (pinned versions + sha256 of downloaded binaries)
-samples/         go-hello, dotnet-sample (isolated, used by tests)
+nvim/                    symlinked to ~/.config/nvim (originals are backed up, never overwritten)
+  init.lua               loads lua/devenv/*
+  lazy-lock.json         plugin pins
+  lua/devenv/            options, keymaps, lsp (the only place servers are configured), run (build/test),
+                         tools (Mason list), health, paths, dap/{go,dotnet,python,node}
+  lua/plugins/           lazy.nvim specs, one file per concern (ui, editor, git, lsp, format, dap, claude)
+scripts/                 bootstrap install check update backup test (+ lib/common.sh)
+manifest/                Brewfile (what Homebrew provides) and tools.lock (URL+sha256 of downloaded binaries)
+samples/                 go-hello, dotnet-sample (.slnx, App + Calc lib + xunit tests), py-hello, ts-hello, misc
+tests/                   headless Lua tests and the DAP protocol client used by scripts/test.sh
 docs/
 ```
 
-## 3. Key decisions (with evidence)
+## 3. Decisions and reasons
+| Decision | Reason |
+|---|---|
+| Built-in `vim.lsp.config()/enable()`; nvim-lspconfig only supplies server definitions | The 0.11+/0.12 API; avoids deprecated `lspconfig.X.setup`. |
+| **No mason-lspconfig** | Its only value was auto-enable/install mapping; that duplicated `vim.lsp.enable` and caused the double initialization in the previous config. Mason installs a plain package list (`devenv/tools.lua`). |
+| Go tools from system/Homebrew, not Mason | Requirement; avoids version skew with the machine's `go`. |
+| roslyn.nvim + Microsoft feed `dotnet tool` | Roslyn is the supported C# server (OmniSharp is legacy). The Mason registry's Roslyn package is a third-party repack; the official feed is first-party. Version pinned. |
+| netcoredbg installed by the script, sha256-pinned | Mason's package pins an older version and ships the amd64 binary for darwin_arm64. Upstream 3.2.0 ships native arm64. Alternatives considered: Microsoft's vsdbg (license restricts use to Microsoft products, not allowed outside VS Code/VS) — not used. |
+| conform.nvim as the single format hook | One `BufWritePre`, per-filetype tool lists, LSP fallback, visible errors. Replaced the `:!gofmt` + `edit!` hook. |
+| gitsigns only for Git | Requirement: blame, no Git UI. |
+| No neotest | Build/test commands are small, CLI-faithful wrappers (`devenv/run.lua`) with fewer plugins and moving parts. neotest was not evaluated; it can be added later if in-buffer result markers are wanted. |
+| Explicit C# launch function instead of an nvim-dap config entry | nvim-dap resolves config fields independently; selecting a project must set `program` *and* `cwd` consistently, and a build must precede launch. |
+| Servers whose binary is missing are not enabled | Avoids an error on every buffer open; health check reports them instead. |
+| Tests run in an XDG sandbox against samples/temp copies | Never touches the user's config, plugins, or projects. |
 
-1. **LSP**: Neovim 0.12 built-in `vim.lsp.config()` / `vim.lsp.enable()`; nvim-lspconfig supplies server definitions only. No `lspconfig[x].setup()` (deprecated).
-2. **Plugin manager**: lazy.nvim with committed `lazy-lock.json`; updates only via `scripts/update.sh`.
-3. **Go tools are Homebrew/system-managed**, not Mason (gopls, dlv, gofmt, goimports). Mason is limited to tools Homebrew lacks.
-4. **C# server**: `seblyng/roslyn.nvim` (README: requires Neovim >= 0.12.0 and a locally downloaded Roslyn server >= 5.12.0-1.26453.19 plus the dotnet SDK). The plugin does not ship the server. Install via Mason with the `Crashdummyy/mason-registry` (package `roslyn`), or `dotnet tool install -g roslyn-language-server --prerelease` from the official Azure DevOps feed. Decision pending: **UNVERIFIED** which is more reproducible; leaning to Mason custom registry pinned to a version, with the dotnet tool as the documented fallback. `.slnx` support is not mentioned in the README: **must be tested with a real `.slnx`**.
-5. **C# debugger**: Samsung **netcoredbg**. Latest upstream release `3.2.0-1092` (2026-06-25) ships a native `netcoredbg-osx-arm64.zip`; no Intel macOS asset exists in that release. **Important:** the Mason registry package for netcoredbg still pins `3.1.3-1062` and, for `darwin_arm64`, downloads the **amd64** archive, which would run under Rosetta and cannot debug a native arm64 .NET runtime. Therefore Mason is NOT used for netcoredbg. `install.sh` downloads the release asset from GitHub, verifies a pinned sha256 from `manifest/tools.lock`, and installs it under `~/.local/share/dev-env/netcoredbg`. Upstream states macOS arm64 is "community supported and may not work as expected". Compatibility with .NET 10.0.401 is **UNVERIFIED**; the smoke test must hit a breakpoint and read a local before debugging is claimed. Intel Macs: no prebuilt asset, documented as manual (build from source) limitation.
-   - Microsoft reported crashes in its own debugger on macOS arm64 with SDK 10.0.104/10.0.200; unknown whether netcoredbg is affected at 10.0.401. Test, don't assume.
-6. **Formatting**: single `conform.nvim` BufWritePre hook; formatters: gofmt/goimports (Go), csharpier or `dotnet format` (C#, decide after testing), ruff (Python), prettier from the project's node_modules (TS/JS, falls back visibly), shfmt, stylua. Missing formatter = WARN in health check, never silent.
-7. **Python**: basedpyright (already used) + ruff; debugpy in a dedicated venv under `~/.local/share/dev-env/`; python 3.14 is very new, so debugpy compatibility is **UNVERIFIED**.
-8. **TS/JS**: ts_ls (typescript-language-server) using the project's local TypeScript; js-debug-adapter for Node debugging (Mason or pinned release).
-9. **Bash/Lua**: bashls + shellcheck + shfmt; lua_ls (with Neovim runtime awareness) + stylua.
-10. **Git**: gitsigns only (current-line blame with author/commit). No git UI.
-11. **Claude Code**: keep `coder/claudecode.nvim` + snacks.nvim unchanged (`<leader>ac`). No other AI providers.
-12. **Completion**: blink.cmp (existing, local sources only, no cloud).
+## 4. Dependency inventory
+Homebrew (if missing): neovim, git, ripgrep, fd, fzf, go, gopls, delve, dotnet, shellcheck, shfmt, stylua, tree-sitter-cli.
+Pinned downloads: netcoredbg 3.2.0-1092 (GitHub, sha256), roslyn-language-server 5.13.0-1.26513.11 (Microsoft feed),
+goimports v0.38.0 (Go proxy+sumdb). Mason: basedpyright, ruff, bash-language-server, lua-language-server,
+typescript-language-server, debugpy, js-debug-adapter. Plugins: see `nvim/lazy-lock.json`.
+Per-language toolchain table:
 
-## 4. Security model
+| Language | Server | Formatter | Debugger | Tests | Verified by |
+|---|---|---|---|---|---|
+| C# | roslyn | Roslyn LSP | netcoredbg | `dotnet test` | LSP, format, build/test, DAP (raw + nvim-dap), exception stop |
+| Go | gopls | goimports+gofmt | delve | `go test` | LSP, format, test cmd, DAP (raw, test mode, nvim-dap) |
+| Python | basedpyright + ruff | ruff | debugpy | pytest | LSP, format. **Debug untested** |
+| TS/JS | ts_ls | project prettier / LSP | js-debug | – | LSP, format (LSP fallback). **Debug untested** |
+| Bash | bashls + shellcheck | shfmt | – | – | LSP/shellcheck, format |
+| Lua | lua_ls + lazydev | stylua | – | – | LSP (Neovim API aware), format |
 
-- No `curl | sh`. Downloaded binaries need a pinned sha256 (recorded in `manifest/tools.lock`); mismatch aborts.
-- No `sudo` anywhere in our scripts. Homebrew's own installer is not run automatically; bootstrap prints the official command and stops.
-- No telemetry plugins. Mason/LSPs run as the user and can read any file the user can; documented in `docs/ARCHITECTURE.md` when finalized.
-- Backups of `~/.config/nvim` go to `~/.local/state/dev-env/backups/<timestamp>/`; restore is by `scripts/backup.sh restore`.
+## 5. Security
+- Language servers and debuggers are native/Node programs running as **your user**: they can read any file you can,
+  and the debuggee inherits your environment variables.
+- Downloads: HTTPS only; sha256 verified before install (`tools.lock`); no `curl | sh`; no `sudo` anywhere.
+- Go installs override the user's `GOSUMDB=off` for that command so the checksum DB is consulted.
+- NuGet signature verification is off by default on macOS for `dotnet tool install` (see DOTNET.md).
+- Mason downloads from GitHub/npm/PyPI registries pinned only by the registry state at install time.
+- No telemetry/cloud completion. lua_ls telemetry explicitly disabled. Claude Code integration unchanged.
+- Logs written by scripts (`~/.local/state/dev-env/*.log`) contain command output only; no secrets are read or written.
+- Nothing in the repo contains tokens or machine-specific secrets; paths are derived from `$HOME`.
 
-## 5. Rollout order and gates
-
-B: repo skeleton -> C: scripts (dry-run first) -> D: Lua config developed in the repo and tested via `NVIM_APPNAME`/`XDG_*` isolation so the live `~/.config/nvim` is untouched -> E: tests -> F: docs + report. Switching the live config happens only after backup and explicit confirmation.
-
-## 6. Open questions for the user
-
-1. Is `/Users/mac/Code/Personal/dev-env` the intended repo location? (assumed yes)
-2. May the installer run `brew install` for: shellcheck, shfmt, stylua? (new software, no sudo)
-3. Intel Mac support for the C# debugger would require a source build; acceptable to document as unsupported?
+## 6. Known limitations
+1. Intel Macs: no C# debugger binary; untested on Intel.
+2. Not tested: Python and Node debugging, attach (.NET/Go), DAP UI visuals and interactive keymaps, `global.json`
+   multi-SDK, remote/Docker debugging, Windows/Linux.
+3. netcoredbg macOS arm64 is community-supported upstream; exception stops show only `$exception` in the first scope.
+4. Mason package versions are not pinned (registry latest at install time).
+5. Roslyn is a prerelease build from Microsoft's feed (the only channel roslyn.nvim documents).
+6. The dev environment on this machine has `GOSUMDB=off` globally (not changed by this repo).
+7. `treesitter` parsers compile locally (need a C compiler).

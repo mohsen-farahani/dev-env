@@ -14,6 +14,11 @@ cmd_create() { # prints backup dir on stdout (last line)
   local ts dir
   ts="$(date +%Y%m%d-%H%M%S)"
   dir="$BACKUPS/$ts"
+  local n=1
+  while [[ -e "$dir" ]]; do # never reuse or overwrite an existing backup
+    dir="$BACKUPS/$ts-$n"
+    n=$((n + 1))
+  done
   if [[ -L "$NVIM_TARGET" ]]; then
     run mkdir -p "$dir"
     [[ "$DRY_RUN" == 1 ]] || readlink "$NVIM_TARGET" >"$dir/symlink-target"

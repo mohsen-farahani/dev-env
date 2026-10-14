@@ -86,6 +86,10 @@ if [[ "$QUICK" == 0 ]]; then
   t "format on save (go, python, bash, lua, ts, C#)" nvim --headless -c "luafile tests/format_check.lua"
 
   log ""
+  log "== Build / test commands =="
+  t "dotnet build (qf errors), dotnet test, go test at cursor" nvim --headless -c "luafile tests/run_check.lua"
+
+  log ""
   log "== Git blame =="
   t "gitsigns inline blame shows author/commit" nvim --headless -c "luafile tests/blame_check.lua"
 

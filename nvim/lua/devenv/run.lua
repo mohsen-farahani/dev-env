@@ -23,7 +23,7 @@ function M.qf(cmd, cwd, efm, title)
       local out = (res.stdout or "") .. (res.stderr or "")
       vim.fn.setqflist({}, " ", { title = title or table.concat(cmd, " "), lines = vim.split(out, "\n"), efm = efm })
       if res.code ~= 0 then
-        vim.cmd("copen")
+        vim.cmd("botright copen | wincmd p")
         notify(title .. " FAILED (exit " .. res.code .. ")", vim.log.levels.ERROR)
       else
         vim.cmd("cclose")
@@ -40,8 +40,22 @@ local MSBUILD_EFM = table.concat({
   "%-G%.%#",
 }, ",")
 
+--- Buffer whose path anchors project discovery: the current one, or the previous window's if we're in a
+--- quickfix/terminal/help window.
+local function context_buf()
+  local buf = vim.api.nvim_get_current_buf()
+  if vim.bo[buf].buftype == "" then
+    return buf
+  end
+  local prev = vim.fn.win_getid(vim.fn.winnr("#"))
+  if prev ~= 0 then
+    return vim.api.nvim_win_get_buf(prev)
+  end
+  return buf
+end
+
 function M.dotnet_root(buf)
-  local name = vim.api.nvim_buf_get_name(buf or 0)
+  local name = vim.api.nvim_buf_get_name(buf or context_buf())
   local start = name ~= "" and vim.fs.dirname(name) or vim.uv.cwd()
   local sln = vim.fs.find(function(n)
     return n:match("%.slnx?$") ~= nil

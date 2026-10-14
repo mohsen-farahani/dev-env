@@ -3,4 +3,7 @@
     <Project Path="src/App/App.csproj" />
     <Project Path="src/Calc/Calc.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Calc.Tests/Calc.Tests.csproj" />
+  </Folder>
 </Solution>
